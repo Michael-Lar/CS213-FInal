@@ -1,13 +1,9 @@
 package com.studentinfo;
 
-import java.io.Serializable;
-
 /**
- * Department information with location and contact details.
- * Implements Comparable for sorting and Serializable for storage.
+ * Represents a department within the institution.
  */
-class Department implements Serializable, Comparable<Department> {
-    private static final long serialVersionUID = 1L;
+public class Department implements Comparable<Department> {
     private int id;
     private String name;
     private String location;
@@ -20,8 +16,8 @@ class Department implements Serializable, Comparable<Department> {
         this.phone = phone;
     }
 
-    // Getters and setters
     public int getId() { return id; }
+    public void setId(int id) { this.id = id; }
     public String getName() { return name; }
     public void setName(String name) { this.name = name; }
     public String getLocation() { return location; }

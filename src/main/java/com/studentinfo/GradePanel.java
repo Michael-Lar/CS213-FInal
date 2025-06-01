@@ -3,15 +3,16 @@ package com.studentinfo;
 import javax.swing.*;
 import javax.swing.table.DefaultTableModel;
 import java.awt.*;
-
+import java.util.List;
 
 /**
- * Grade management panel with course/student based filtering.
+ * Grade management panel with course/student based filtering using DAO.
  * Handles grade assignment and updates.
  */
 class GradePanel extends JPanel {
     private MainFrame mainFrame;
     private JTextField studentIdField, courseIdField;
+    private JTextField updateStudentIdField, updateCourseIdField;
     private JComboBox<String> yearCombo, semesterCombo, gradeCombo;
     private JButton searchByStudentButton, searchByCourseButton, updateGradeButton;
     private JTable gradesTable;
@@ -19,7 +20,7 @@ class GradePanel extends JPanel {
     
     private String[] years = {"2023", "2024", "2025"};
     private String[] semesters = {"Fall", "Spring", "Summer"};
-    private String[] grades = {"A", "A-", "B+", "B", "B-", "C+", "C", "C-", "D+", "D", "F"};
+    private String[] grades = {"A", "A-", "B+", "B", "B-", "C+", "C", "C-", "D+", "D", "F", ""};
 
     public GradePanel(MainFrame mainFrame) {
         this.mainFrame = mainFrame;
@@ -34,205 +35,200 @@ class GradePanel extends JPanel {
         topPanel.setLayout(new BoxLayout(topPanel, BoxLayout.Y_AXIS));
         topPanel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
 
-        // Search panel - contains student and course search sections
-        JPanel searchPanel = new JPanel(new GridLayout(2, 1, 5, 10));
+        // Search panel
+        JPanel searchInputPanel = new JPanel(new GridLayout(2, 1, 5, 10));
 
-        // Student search section
-        JPanel studentSearchPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 5, 0));
-        studentSearchPanel.add(new JLabel("Student ID:"));
+        JPanel studentSearchLine = new JPanel(new FlowLayout(FlowLayout.LEFT, 5, 0));
+        studentSearchLine.add(new JLabel("Search by Student ID:"));
         studentIdField = new JTextField(10);
-        studentSearchPanel.add(studentIdField);
-        searchByStudentButton = new JButton("Search by Student");
-        studentSearchPanel.add(searchByStudentButton);
-        searchPanel.add(studentSearchPanel);
+        studentSearchLine.add(studentIdField);
+        searchByStudentButton = new JButton("Get Student Grades");
+        studentSearchLine.add(searchByStudentButton);
+        searchInputPanel.add(studentSearchLine);
 
-        // Course search section
-        JPanel courseSearchPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 5, 0));
-        courseSearchPanel.add(new JLabel("Course ID:"));
+        JPanel courseSearchLine = new JPanel(new FlowLayout(FlowLayout.LEFT, 5, 0));
+        courseSearchLine.add(new JLabel("Search by Course ID:"));
         courseIdField = new JTextField(10);
-        courseSearchPanel.add(courseIdField);
-        searchByCourseButton = new JButton("Search by Course");
-        courseSearchPanel.add(searchByCourseButton);
-        searchPanel.add(courseSearchPanel);
-
-        topPanel.add(searchPanel);
+        courseSearchLine.add(courseIdField);
+        searchByCourseButton = new JButton("Get Course Enrollments");
+        courseSearchLine.add(searchByCourseButton);
+        searchInputPanel.add(courseSearchLine);
+        topPanel.add(searchInputPanel);
         
-        // Add some spacing between sections
         topPanel.add(Box.createRigidArea(new Dimension(0, 10)));
         
-        // Grade section - for updating grades
-        JPanel gradePanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 5, 0));
-        gradePanel.setBorder(BorderFactory.createTitledBorder("Update Grade"));
+        // Grade update section
+        JPanel gradeUpdatePanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 5, 0));
+        gradeUpdatePanel.setBorder(BorderFactory.createTitledBorder("Update Grade for Specific Enrollment"));
         
-        gradePanel.add(new JLabel("Year:"));
+        gradeUpdatePanel.add(new JLabel("Student ID:"));
+        updateStudentIdField = new JTextField(8);
+        gradeUpdatePanel.add(updateStudentIdField);
+
+        gradeUpdatePanel.add(new JLabel("Course ID:"));
+        updateCourseIdField = new JTextField(8);
+        gradeUpdatePanel.add(updateCourseIdField);
+
+        gradeUpdatePanel.add(new JLabel("Year:"));
         yearCombo = new JComboBox<>(years);
         yearCombo.setPreferredSize(new Dimension(80, 25));
-        gradePanel.add(yearCombo);
+        gradeUpdatePanel.add(yearCombo);
         
-        gradePanel.add(new JLabel("Semester:"));
+        gradeUpdatePanel.add(new JLabel("Semester:"));
         semesterCombo = new JComboBox<>(semesters);
         semesterCombo.setPreferredSize(new Dimension(100, 25));
-        gradePanel.add(semesterCombo);
+        gradeUpdatePanel.add(semesterCombo);
         
-        gradePanel.add(new JLabel("Grade:"));
+        gradeUpdatePanel.add(new JLabel("New Grade:"));
         gradeCombo = new JComboBox<>(grades);
-        gradeCombo.setPreferredSize(new Dimension(60, 25));
-        gradePanel.add(gradeCombo);
+        gradeCombo.setPreferredSize(new Dimension(70, 25));
+        gradeUpdatePanel.add(gradeCombo);
         
-        updateGradeButton = new JButton("Update Grade");
-        gradePanel.add(updateGradeButton);
-        
-        topPanel.add(gradePanel);
+        updateGradeButton = new JButton("Set Grade");
+        gradeUpdatePanel.add(updateGradeButton);
+        topPanel.add(gradeUpdatePanel);
 
         // Table for viewing grades
-        String[] columnNames = {"Student ID", "Student Name", "Course ID", "Course Name", "Year", "Semester", "Grade"};
-        tableModel = new DefaultTableModel(columnNames, 0);
+        String[] columnNames = {"Enroll ID", "Std ID", "Student Name", "Crs ID", "Course Name", "Year", "Semester", "Grade"};
+        tableModel = new DefaultTableModel(columnNames, 0) {
+            @Override
+            public boolean isCellEditable(int row, int column) {
+                return false;
+            }
+        };
         gradesTable = new JTable(tableModel);
+        gradesTable.getSelectionModel().addListSelectionListener(event -> {
+            if (!event.getValueIsAdjusting() && gradesTable.getSelectedRow() != -1) {
+                int selectedRow = gradesTable.getSelectedRow();
+                updateStudentIdField.setText(gradesTable.getValueAt(selectedRow, 1).toString());
+                updateCourseIdField.setText(gradesTable.getValueAt(selectedRow, 3).toString());
+                yearCombo.setSelectedItem(gradesTable.getValueAt(selectedRow, 5).toString());
+                semesterCombo.setSelectedItem(gradesTable.getValueAt(selectedRow, 6).toString());
+                String currentGrade = gradesTable.getValueAt(selectedRow, 7) != null ? gradesTable.getValueAt(selectedRow, 7).toString() : "";
+                gradeCombo.setSelectedItem(currentGrade);
+            }
+        });
         JScrollPane scrollPane = new JScrollPane(gradesTable);
 
-        // Add components to main panel
         add(topPanel, BorderLayout.NORTH);
         add(scrollPane, BorderLayout.CENTER);
 
-        // Add action listeners
         searchByStudentButton.addActionListener(e -> searchByStudent());
         searchByCourseButton.addActionListener(e -> searchByCourse());
         updateGradeButton.addActionListener(e -> updateGrade());
     }
 
     private void searchByStudent() {
-        tableModel.setRowCount(0); // Clear table
-
+        tableModel.setRowCount(0); 
+        String studentIdText = studentIdField.getText().trim();
+        if (studentIdText.isEmpty()) {
+            JOptionPane.showMessageDialog(this, "Please enter a Student ID to search.", "Info", JOptionPane.INFORMATION_MESSAGE);
+            return;
+        }
         try {
-            int studentId = Integer.parseInt(studentIdField.getText().trim());
+            int studentId = Integer.parseInt(studentIdText);
             Student student = mainFrame.findStudentById(studentId);
-
             if (student == null) {
                 JOptionPane.showMessageDialog(this, "Student ID not found.", "Error", JOptionPane.ERROR_MESSAGE);
                 return;
             }
 
-            for (Enrollment enrollment : mainFrame.getEnrollments()) {
-                if (enrollment.getStudentId() == studentId) {
-                    Course course = mainFrame.findCourseById(enrollment.getCourseId());
-                    if (course != null) {
-                        Object[] row = {
-                            enrollment.getStudentId(),
-                            student.getName(),
-                            enrollment.getCourseId(),
-                            course.getName(),
-                            enrollment.getYear(),
-                            enrollment.getSemester(),
-                            enrollment.getGrade() != null ? enrollment.getGrade() : "Not Graded"
-                        };
-                        tableModel.addRow(row);
-                    }
-                }
+            List<Enrollment> enrollments = mainFrame.getEnrollmentsForStudentFromDB(studentId);
+            if (enrollments.isEmpty()) {
+                JOptionPane.showMessageDialog(this, "No enrollments found for this student.", "Info", JOptionPane.INFORMATION_MESSAGE);
+                return;
+            }
+            for (Enrollment enrollment : enrollments) {
+                Course course = mainFrame.findCourseById(enrollment.getCourseId());
+                String courseName = (course != null) ? course.getCourseName() : "N/A";
+                tableModel.addRow(new Object[]{
+                    enrollment.getEnrollmentId(),
+                    enrollment.getStudentId(),
+                    student.getName(),
+                    enrollment.getCourseId(),
+                    courseName,
+                    enrollment.getYear(),
+                    enrollment.getSemester(),
+                    enrollment.getGrade() != null ? enrollment.getGrade() : ""
+                });
             }
         } catch (NumberFormatException e) {
-            JOptionPane.showMessageDialog(this, "Invalid ID format. Please enter a number.", "Error", JOptionPane.ERROR_MESSAGE);
+            JOptionPane.showMessageDialog(this, "Invalid Student ID format.", "Error", JOptionPane.ERROR_MESSAGE);
         }
     }
 
     private void searchByCourse() {
-        tableModel.setRowCount(0); // Clear table
-
+        tableModel.setRowCount(0);
+        String courseIdText = courseIdField.getText().trim();
+        if (courseIdText.isEmpty()) {
+            JOptionPane.showMessageDialog(this, "Please enter a Course ID to search.", "Info", JOptionPane.INFORMATION_MESSAGE);
+            return;
+        }
         try {
-            int courseId = Integer.parseInt(courseIdField.getText().trim());
+            int courseId = Integer.parseInt(courseIdText);
             Course course = mainFrame.findCourseById(courseId);
-
             if (course == null) {
                 JOptionPane.showMessageDialog(this, "Course ID not found.", "Error", JOptionPane.ERROR_MESSAGE);
                 return;
             }
 
-            for (Enrollment enrollment : mainFrame.getEnrollments()) {
-                if (enrollment.getCourseId() == courseId) {
-                    Student student = mainFrame.findStudentById(enrollment.getStudentId());
-                    if (student != null) {
-                        Object[] row = {
-                            enrollment.getStudentId(),
-                            student.getName(),
-                            enrollment.getCourseId(),
-                            course.getName(),
-                            enrollment.getYear(),
-                            enrollment.getSemester(),
-                            enrollment.getGrade() != null ? enrollment.getGrade() : "Not Graded"
-                        };
-                        tableModel.addRow(row);
-                    }
-                }
+            List<Enrollment> enrollments = mainFrame.getEnrollmentsForCourseFromDB(courseId);
+            if (enrollments.isEmpty()) {
+                JOptionPane.showMessageDialog(this, "No enrollments found for this course.", "Info", JOptionPane.INFORMATION_MESSAGE);
+                return;
+            }
+            for (Enrollment enrollment : enrollments) {
+                Student student = mainFrame.findStudentById(enrollment.getStudentId());
+                String studentName = (student != null) ? student.getName() : "N/A";
+                tableModel.addRow(new Object[]{
+                    enrollment.getEnrollmentId(),
+                    enrollment.getStudentId(),
+                    studentName,
+                    enrollment.getCourseId(),
+                    course.getCourseName(),
+                    enrollment.getYear(),
+                    enrollment.getSemester(),
+                    enrollment.getGrade() != null ? enrollment.getGrade() : ""
+                });
             }
         } catch (NumberFormatException e) {
-            JOptionPane.showMessageDialog(this, "Invalid ID format. Please enter a number.", "Error", JOptionPane.ERROR_MESSAGE);
+            JOptionPane.showMessageDialog(this, "Invalid Course ID format.", "Error", JOptionPane.ERROR_MESSAGE);
         }
     }
 
-    /**
-     * Updates grade for student/course enrollment.
-     * Supports updating by either student ID or course ID.
-     */
     private void updateGrade() {
+        String studentIdText = updateStudentIdField.getText().trim();
+        String courseIdText = updateCourseIdField.getText().trim();
+        
+        if (studentIdText.isEmpty() || courseIdText.isEmpty()) {
+            JOptionPane.showMessageDialog(this, "Student ID and Course ID are required in the 'Update Grade' section. Select a row from the table or enter them manually.", "Error", JOptionPane.ERROR_MESSAGE);
+            return;
+        }
+
         try {
-            // Get student ID if provided
-            String studentIdText = studentIdField.getText().trim();
-            int studentId = -1;
-            if (!studentIdText.isEmpty()) {
-                studentId = Integer.parseInt(studentIdText);
-            }
-            
-            // Get course ID if provided
-            String courseIdText = courseIdField.getText().trim();
-            int courseId = -1;
-            if (!courseIdText.isEmpty()) {
-                courseId = Integer.parseInt(courseIdText);
-            }
-            
+            int studentId = Integer.parseInt(studentIdText);
+            int courseId = Integer.parseInt(courseIdText);
             String year = yearCombo.getSelectedItem().toString();
             String semester = semesterCombo.getSelectedItem().toString();
-            String grade = gradeCombo.getSelectedItem().toString();
-            
-            // Validate that we have either student ID or course ID
-            if (studentId <= 0 && courseId <= 0) {
-                JOptionPane.showMessageDialog(this, "Please enter either a Student ID or Course ID.", 
-                    "Missing Information", JOptionPane.WARNING_MESSAGE);
-                return;
-            }
-            
-            boolean found = false;
-            // Update grade for selected student/course combination
-            for (Enrollment enrollment : mainFrame.getEnrollments()) {
-                boolean matchesStudent = (studentId > 0) ? enrollment.getStudentId() == studentId : true;
-                boolean matchesCourse = (courseId > 0) ? enrollment.getCourseId() == courseId : true;
-                
-                if (matchesStudent && matchesCourse &&
-                    enrollment.getYear().equals(year) &&
-                    enrollment.getSemester().equals(semester)) {
-                    
-                    enrollment.setGrade(grade);
-                    found = true;
-                }
-            }
+            String grade = gradeCombo.getSelectedItem() != null ? gradeCombo.getSelectedItem().toString() : null;
+            if (grade != null && grade.isEmpty()) grade = null;
 
-            if (found) {
-                mainFrame.saveEnrollments();
+            if (mainFrame.updateGradeInDB(studentId, courseId, year, semester, grade)) {
                 JOptionPane.showMessageDialog(this, "Grade updated successfully.", "Success", JOptionPane.INFORMATION_MESSAGE);
-                // Refresh the table based on the current search mode
-                if (studentId > 0) {
-                    searchByStudent();
-                } else if (courseId > 0) {
+                if (!studentIdField.getText().trim().isEmpty()) {
+                    searchByStudent(); 
+                } else if (!courseIdField.getText().trim().isEmpty()) {
                     searchByCourse();
+                } else { 
+                    tableModel.setRowCount(0);
                 }
+                updateStudentIdField.setText("");
+                updateCourseIdField.setText("");
             } else {
-                JOptionPane.showMessageDialog(this, 
-                    "No enrollment found for the specified " + 
-                    (studentId > 0 ? "student" : "course") + 
-                    " in " + semester + " " + year, 
-                    "Not Found", JOptionPane.WARNING_MESSAGE);
+                JOptionPane.showMessageDialog(this, "Failed to update grade. Ensure the enrollment exists for the specified student, course, year, and semester.", "Error", JOptionPane.ERROR_MESSAGE);
             }
         } catch (NumberFormatException e) {
-            JOptionPane.showMessageDialog(this, "Invalid ID format. Please enter numbers.", 
-                "Error", JOptionPane.ERROR_MESSAGE);
+            JOptionPane.showMessageDialog(this, "Invalid Student ID or Course ID in 'Update Grade' section.", "Error", JOptionPane.ERROR_MESSAGE);
         }
     }
 } 

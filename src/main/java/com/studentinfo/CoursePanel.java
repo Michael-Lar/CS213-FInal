@@ -2,22 +2,32 @@ package com.studentinfo;
 
 import javax.swing.*;
 import java.awt.*;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
+import java.util.List;
+import com.studentinfo.dao.CourseDAO;
 
 /**
- * Course management panel with department-based instructor filtering.
- * Handles adding, editing, and searching course records.
+ * Course management panel with department-based professor filtering.
+ * Handles adding, editing, and searching course records using DAO.
  */
 class CoursePanel extends JPanel {
     private MainFrame mainFrame;
-    private JTextField idField, nameField, creditsField;
+    private CourseDAO courseDAO;
+    private JTextField courseNumberField;
+    private JTextField courseNameField;
+    private JTextField creditsField;
     private JComboBox<Department> departmentCombo;
-    private JComboBox<Instructor> instructorCombo;
+    private JComboBox<Professor> professorCombo;
     private JButton addButton, searchButton, editButton, resetButton;
     private JLabel statusLabel;
+    private int currentCourseId = -1;
 
     public CoursePanel(MainFrame mainFrame) {
         this.mainFrame = mainFrame;
+        this.courseDAO = new CourseDAO();
         setupUI();
+        resetFields();
     }
 
     private void setupUI() {
@@ -27,13 +37,13 @@ class CoursePanel extends JPanel {
         JPanel formPanel = new JPanel(new GridLayout(6, 2, 5, 5));
         formPanel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
 
-        formPanel.add(new JLabel("Course ID:"));
-        idField = new JTextField();
-        formPanel.add(idField);
+        formPanel.add(new JLabel("Course Number:"));
+        courseNumberField = new JTextField();
+        formPanel.add(courseNumberField);
 
-        formPanel.add(new JLabel("Name:"));
-        nameField = new JTextField();
-        formPanel.add(nameField);
+        formPanel.add(new JLabel("Course Name:"));
+        courseNameField = new JTextField();
+        formPanel.add(courseNameField);
 
         formPanel.add(new JLabel("Credits:"));
         creditsField = new JTextField();
@@ -41,23 +51,29 @@ class CoursePanel extends JPanel {
 
         formPanel.add(new JLabel("Department:"));
         departmentCombo = new JComboBox<>();
-        updateDepartmentCombo();
-        departmentCombo.addActionListener(e -> updateInstructorCombo());
         formPanel.add(departmentCombo);
 
-        formPanel.add(new JLabel("Instructor:"));
-        instructorCombo = new JComboBox<>();
-        updateInstructorCombo();
-        formPanel.add(instructorCombo);
+        formPanel.add(new JLabel("Professor:"));
+        professorCombo = new JComboBox<>();
+        formPanel.add(professorCombo);
 
         statusLabel = new JLabel(" ");
         formPanel.add(statusLabel);
 
+        // Initialize combos after all components are created
+        updateDepartmentCombo();
+        departmentCombo.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                updateProfessorCombo();
+            }
+        });
+
         // Button panel
         JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.CENTER));
         addButton = new JButton("Add Course");
-        searchButton = new JButton("Search");
-        editButton = new JButton("Edit Course");
+        searchButton = new JButton("Search by Number");
+        editButton = new JButton("Update Course");
         resetButton = new JButton("Reset");
 
         buttonPanel.add(addButton);
@@ -71,153 +87,211 @@ class CoursePanel extends JPanel {
 
         // Add action listeners
         addButton.addActionListener(e -> addCourse());
-        searchButton.addActionListener(e -> searchCourse());
+        searchButton.addActionListener(e -> searchCourseByNumber());
         editButton.addActionListener(e -> editCourse());
         resetButton.addActionListener(e -> resetFields());
     }
 
     public void updateDepartmentCombo() {
+        Department selectedItem = (Department) departmentCombo.getSelectedItem();
         departmentCombo.removeAllItems();
-        for (int i = 0; i < mainFrame.getDepartments().size(); i++) {
-            departmentCombo.addItem(mainFrame.getDepartments().get(i));
+        List<Department> departments = mainFrame.getDepartments();
+        if (departments != null) {
+            for (Department dept : departments) {
+                departmentCombo.addItem(dept);
+            }
         }
+        if (selectedItem != null) {
+            for (int i = 0; i < departmentCombo.getItemCount(); i++) {
+                if (departmentCombo.getItemAt(i).getId() == selectedItem.getId()) {
+                    departmentCombo.setSelectedIndex(i);
+                    break;
+                }
+            }
+        }
+        updateProfessorCombo();
     }
 
-    /**
-     * Updates instructor dropdown based on selected department.
-     * Shows only instructors from the selected department.
-     */
-    public void updateInstructorCombo() {
-        instructorCombo.removeAllItems();
+    public void updateProfessorCombo() {
+        Professor selectedProf = (Professor) professorCombo.getSelectedItem();
+        professorCombo.removeAllItems();
         Department selectedDepartment = (Department) departmentCombo.getSelectedItem();
         if (selectedDepartment != null) {
-            MyGenericList<Instructor> departmentInstructors = mainFrame.getInstructorsByDepartment(selectedDepartment.getId());
-            for (int i = 0; i < departmentInstructors.size(); i++) {
-                instructorCombo.addItem(departmentInstructors.get(i));
+            List<Professor> professors = mainFrame.getProfessorsByDepartment(selectedDepartment.getId());
+            if (professors != null) {
+                for (Professor prof : professors) {
+                    professorCombo.addItem(prof);
+                }
+            }
+            if (selectedProf != null && selectedDepartment.getId() == selectedProf.getDept_id()) {
+                for (int i = 0; i < professorCombo.getItemCount(); i++) {
+                    if (professorCombo.getItemAt(i).getProf_id() == selectedProf.getProf_id()) {
+                        professorCombo.setSelectedIndex(i);
+                        break;
+                    }
+                }
             }
         }
     }
 
     private void addCourse() {
+        String courseNumber = courseNumberField.getText().trim();
+        String courseName = courseNameField.getText().trim();
+        String creditsText = creditsField.getText().trim();
+        Department selectedDepartment = (Department) departmentCombo.getSelectedItem();
+        Professor selectedProfessor = (Professor) professorCombo.getSelectedItem();
+
+        if (courseNumber.isEmpty() || courseName.isEmpty() || creditsText.isEmpty() || selectedDepartment == null) {
+            JOptionPane.showMessageDialog(this, "Course Number, Name, Credits, and Department are required.", "Error", JOptionPane.ERROR_MESSAGE);
+            return;
+        }
+
+        if (selectedProfessor == null && professorCombo.getItemCount() > 0) {
+            JOptionPane.showMessageDialog(this, "Please select a Professor or ensure one exists for the department.", "Error", JOptionPane.ERROR_MESSAGE);
+            return;
+        }
+
+        int credits;
         try {
-            int id = Integer.parseInt(idField.getText().trim());
-            String name = nameField.getText().trim();
-            int credits = Integer.parseInt(creditsField.getText().trim());
-            Department selectedDepartment = (Department) departmentCombo.getSelectedItem();
-            Instructor selectedInstructor = (Instructor) instructorCombo.getSelectedItem();
-
-            // Validate fields
-            if (name.isEmpty() || selectedDepartment == null || selectedInstructor == null) {
-                JOptionPane.showMessageDialog(this, "All fields are required.", "Error", JOptionPane.ERROR_MESSAGE);
-                return;
-            }
-
-            // Check if course ID already exists
-            if (mainFrame.getCourses().size() > 0 && mainFrame.findCourseById(id) != null) {
-                JOptionPane.showMessageDialog(this, "Course ID already exists.", "Error", JOptionPane.ERROR_MESSAGE);
-                return;
-            }
-
-            // Create new course and add to list
-            Course course = new Course(id, name, credits, selectedDepartment.getId(), selectedInstructor.getId());
-            mainFrame.getCourses().add(course);
-            mainFrame.saveCourses();
-
-            JOptionPane.showMessageDialog(this, "Course added successfully.", "Success", JOptionPane.INFORMATION_MESSAGE);
-            resetFields();
+            credits = Integer.parseInt(creditsText);
         } catch (NumberFormatException e) {
-            JOptionPane.showMessageDialog(this, "Invalid ID or credits format. Please enter numbers.", "Error", JOptionPane.ERROR_MESSAGE);
+            JOptionPane.showMessageDialog(this, "Invalid format for Credits. Please enter a number.", "Error", JOptionPane.ERROR_MESSAGE);
+            return;
+        }
+
+        if (courseDAO.getCourseByCourseNumber(courseNumber) != null) {
+            JOptionPane.showMessageDialog(this, "Course Number already exists.", "Error", JOptionPane.ERROR_MESSAGE);
+            return;
+        }
+
+        Course newCourse = new Course(0, courseNumber, courseName, credits, selectedDepartment.getId(), selectedProfessor != null ? selectedProfessor.getProf_id() : 0);
+
+        if (courseDAO.addCourse(newCourse)) {
+            currentCourseId = newCourse.getId();
+            JOptionPane.showMessageDialog(this, "Course added successfully. DB ID: " + currentCourseId, "Success", JOptionPane.INFORMATION_MESSAGE);
+            resetFields();
+        } else {
+            JOptionPane.showMessageDialog(this, "Failed to add course.", "Error", JOptionPane.ERROR_MESSAGE);
         }
     }
 
-    private void searchCourse() {
-        try {
-            int id = Integer.parseInt(idField.getText().trim());
-            Course course = mainFrame.findCourseById(id);
+    private void searchCourseByNumber() {
+        String courseNumber = courseNumberField.getText().trim();
+        if (courseNumber.isEmpty()) {
+            JOptionPane.showMessageDialog(this, "Please enter a Course Number to search.", "Info", JOptionPane.INFORMATION_MESSAGE);
+            return;
+        }
 
-            if (course != null) {
-                idField.setText(String.valueOf(course.getId()));
-                nameField.setText(course.getName());
-                creditsField.setText(String.valueOf(course.getCredits()));
-                
-                // Set department in combo box
-                Department department = mainFrame.findDepartmentById(course.getDepartmentId());
-                if (department != null) {
-                    for (int i = 0; i < departmentCombo.getItemCount(); i++) {
-                        if (departmentCombo.getItemAt(i).getId() == department.getId()) {
-                            departmentCombo.setSelectedIndex(i);
-                            break;
-                        }
-                    }
+        Course course = courseDAO.getCourseByCourseNumber(courseNumber);
+
+        if (course != null) {
+            populateFields(course);
+            statusLabel.setText("Course found: " + course.getCourseNumber());
+            courseNumberField.setEditable(false);
+            addButton.setEnabled(false);
+            editButton.setEnabled(true);
+        } else {
+            JOptionPane.showMessageDialog(this, "Course Number not found.", "Error", JOptionPane.ERROR_MESSAGE);
+            resetFields();
+        }
+    }
+
+    private void populateFields(Course course) {
+        currentCourseId = course.getId();
+        courseNumberField.setText(course.getCourseNumber());
+        courseNameField.setText(course.getCourseName());
+        creditsField.setText(String.valueOf(course.getCredits()));
+
+        Department courseDept = mainFrame.findDepartmentById(course.getDepartmentId());
+        if (courseDept != null) {
+            for (int i = 0; i < departmentCombo.getItemCount(); i++) {
+                if (departmentCombo.getItemAt(i).getId() == courseDept.getId()) {
+                    departmentCombo.setSelectedIndex(i);
+                    break;
                 }
-                
-                // Set instructor in combo box
-                Instructor instructor = mainFrame.findInstructorById(course.getInstructorId());
-                if (instructor != null) {
-                    for (int i = 0; i < instructorCombo.getItemCount(); i++) {
-                        if (instructorCombo.getItemAt(i).getId() == instructor.getId()) {
-                            instructorCombo.setSelectedIndex(i);
-                            break;
-                        }
-                    }
-                }
-                
-                statusLabel.setText("Course found.");
-            } else {
-                JOptionPane.showMessageDialog(this, "Course ID not found.", "Error", JOptionPane.ERROR_MESSAGE);
             }
-        } catch (NumberFormatException e) {
-            JOptionPane.showMessageDialog(this, "Invalid ID format. Please enter a number.", "Error", JOptionPane.ERROR_MESSAGE);
+        }
+
+        Professor courseProf = mainFrame.findProfessorById(course.getProfessorId());
+        if (courseProf != null) {
+            for (int i = 0; i < professorCombo.getItemCount(); i++) {
+                if (professorCombo.getItemAt(i) != null && professorCombo.getItemAt(i).getProf_id() == course.getProfessorId()) {
+                    professorCombo.setSelectedIndex(i);
+                    break;
+                }
+            }
+        } else if (course.getProfessorId() == 0 || course.getProfessorId() == -1) {
+            professorCombo.setSelectedIndex(-1);
         }
     }
 
     private void editCourse() {
+        if (currentCourseId == -1) {
+            JOptionPane.showMessageDialog(this, "Please search for a course to update first.", "Error", JOptionPane.ERROR_MESSAGE);
+            return;
+        }
+
+        String courseNumber = courseNumberField.getText().trim();
+        String courseName = courseNameField.getText().trim();
+        String creditsText = creditsField.getText().trim();
+        Department selectedDepartment = (Department) departmentCombo.getSelectedItem();
+        Professor selectedProfessor = (Professor) professorCombo.getSelectedItem();
+
+        if (courseNumber.isEmpty() || courseName.isEmpty() || creditsText.isEmpty() || selectedDepartment == null) {
+            JOptionPane.showMessageDialog(this, "Course Number, Name, Credits, and Department are required.", "Error", JOptionPane.ERROR_MESSAGE);
+            return;
+        }
+
+        if (selectedProfessor == null && professorCombo.getItemCount() > 0) {
+            JOptionPane.showMessageDialog(this, "Please select a Professor.", "Error", JOptionPane.ERROR_MESSAGE);
+            return;
+        }
+
+        int credits;
         try {
-            int id = Integer.parseInt(idField.getText().trim());
-            Course course = mainFrame.findCourseById(id);
-
-            if (course != null) {
-                // Lock ID field
-                idField.setEditable(false);
-                
-                // Update course information
-                String name = nameField.getText().trim();
-                int credits = Integer.parseInt(creditsField.getText().trim());
-                Department selectedDepartment = (Department) departmentCombo.getSelectedItem();
-                Instructor selectedInstructor = (Instructor) instructorCombo.getSelectedItem();
-
-                // Validate fields
-                if (name.isEmpty() || selectedDepartment == null || selectedInstructor == null) {
-                    JOptionPane.showMessageDialog(this, "All fields are required.", "Error", JOptionPane.ERROR_MESSAGE);
-                    return;
-                }
-
-                course.setName(name);
-                course.setCredits(credits);
-                course.setDepartmentId(selectedDepartment.getId());
-                course.setInstructorId(selectedInstructor.getId());
-                mainFrame.saveCourses();
-
-                JOptionPane.showMessageDialog(this, "Course updated successfully.", "Success", JOptionPane.INFORMATION_MESSAGE);
-                resetFields();
-            } else {
-                JOptionPane.showMessageDialog(this, "Course ID not found.", "Error", JOptionPane.ERROR_MESSAGE);
-            }
+            credits = Integer.parseInt(creditsText);
         } catch (NumberFormatException e) {
-            JOptionPane.showMessageDialog(this, "Invalid ID or credits format. Please enter numbers.", "Error", JOptionPane.ERROR_MESSAGE);
+            JOptionPane.showMessageDialog(this, "Invalid format for Credits. Please enter a number.", "Error", JOptionPane.ERROR_MESSAGE);
+            return;
+        }
+
+        Course existingCourseWithSameNumber = courseDAO.getCourseByCourseNumber(courseNumber);
+        if (existingCourseWithSameNumber != null && existingCourseWithSameNumber.getId() != currentCourseId) {
+            JOptionPane.showMessageDialog(this, "Another course with this Course Number already exists.", "Error", JOptionPane.ERROR_MESSAGE);
+            return;
+        }
+
+        Course courseToUpdate = new Course(currentCourseId, courseNumber, courseName, credits, selectedDepartment.getId(), selectedProfessor != null ? selectedProfessor.getProf_id() : 0);
+
+        if (courseDAO.updateCourse(courseToUpdate)) {
+            JOptionPane.showMessageDialog(this, "Course updated successfully.", "Success", JOptionPane.INFORMATION_MESSAGE);
+            resetFields();
+        } else {
+            JOptionPane.showMessageDialog(this, "Failed to update course.", "Error", JOptionPane.ERROR_MESSAGE);
         }
     }
 
     private void resetFields() {
-        idField.setText("");
-        nameField.setText("");
+        currentCourseId = -1;
+        courseNumberField.setText("");
+        courseNameField.setText("");
         creditsField.setText("");
-        departmentCombo.setSelectedIndex(0);
-        instructorCombo.setSelectedIndex(0);
-        statusLabel.setText(" ");
         
-        // Ensure ID field is editable and has normal background color
-        idField.setEditable(true);
-        idField.setBackground(UIManager.getColor("TextField.background"));
+        if (departmentCombo.getItemCount() > 0) {
+            departmentCombo.setSelectedIndex(0);
+        } else {
+            departmentCombo.removeAllItems();
+            updateProfessorCombo();
+        }
+
+        if (departmentCombo.getItemCount() == 0 && professorCombo.getItemCount() > 0) {
+            professorCombo.setSelectedIndex(-1);
+        }
+
+        statusLabel.setText(" ");
+        courseNumberField.setEditable(true);
+        courseNumberField.requestFocus();
+        addButton.setEnabled(true);
+        editButton.setEnabled(false);
     }
 } 

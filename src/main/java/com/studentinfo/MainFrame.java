@@ -1,10 +1,13 @@
 package com.studentinfo;
 
 import javax.swing.*;
-import java.io.*;
-import java.util.ArrayList;
 import java.util.List;
 
+import com.studentinfo.dao.DepartmentDAO;
+import com.studentinfo.dao.ProfessorDAO;
+import com.studentinfo.dao.StudentDAO;
+import com.studentinfo.dao.CourseDAO;
+import com.studentinfo.dao.EnrollmentDAO;
 
 /**
  * Main application window containing all panels and data management.
@@ -13,25 +16,18 @@ import java.util.List;
 class MainFrame extends JFrame {
     private JTabbedPane tabbedPane;
     
-    // Shared data stores using generic linked list
-    private MyGenericList<Student> students;
-    private MyGenericList<Course> courses;
-    private MyGenericList<Department> departments;
-    private MyGenericList<Instructor> instructors;
-    private List<Enrollment> enrollments;
-    
-    // File paths
-    private static final String STUDENT_FILE = "data/students.dat";
-    private static final String COURSE_FILE = "data/courses.dat";
-    private static final String DEPARTMENT_FILE = "data/departments.dat";
-    private static final String INSTRUCTOR_FILE = "data/instructors.dat";
-    private static final String ENROLLMENT_FILE = "data/enrollments.dat";
+    // Shared data stores using DAOs
+    private StudentDAO studentDAO;
+    private CourseDAO courseDAO;
+    private DepartmentDAO departmentDAO;
+    private ProfessorDAO professorDAO;
+    private EnrollmentDAO enrollmentDAO;
     
     // Panels
     private StudentPanel studentPanel;
     private CoursePanel coursePanel;
     private DepartmentPanel departmentPanel;
-    private InstructorPanel instructorPanel;
+    private ProfessorPanel professorPanel;
     private EnrollmentPanel enrollmentPanel;
     private GradePanel gradePanel;
     private ReportPanel reportPanel;
@@ -43,25 +39,18 @@ class MainFrame extends JFrame {
         setLocationRelativeTo(null);
         
         // Initialize data stores
-        students = new MyGenericList<>();
-        courses = new MyGenericList<>();
-        departments = new MyGenericList<>();
-        instructors = new MyGenericList<>();
-        enrollments = new ArrayList<>();
-        
-        // Load data
-        loadStudents();
-        loadCourses();
-        loadDepartments();
-        loadInstructors();
-        loadEnrollments();
+        studentDAO = new StudentDAO();
+        courseDAO = new CourseDAO();
+        departmentDAO = new DepartmentDAO();
+        professorDAO = new ProfessorDAO();
+        enrollmentDAO = new EnrollmentDAO();
         
         // Initialize panels with shared data
         tabbedPane = new JTabbedPane();
         studentPanel = new StudentPanel(this);
         coursePanel = new CoursePanel(this);
         departmentPanel = new DepartmentPanel(this);
-        instructorPanel = new InstructorPanel(this);
+        professorPanel = new ProfessorPanel(this);
         enrollmentPanel = new EnrollmentPanel(this);
         gradePanel = new GradePanel(this);
         reportPanel = new ReportPanel(this);
@@ -69,7 +58,7 @@ class MainFrame extends JFrame {
         tabbedPane.addTab("Students", studentPanel);
         tabbedPane.addTab("Courses", coursePanel);
         tabbedPane.addTab("Departments", departmentPanel);
-        tabbedPane.addTab("Instructors", instructorPanel);
+        tabbedPane.addTab("Professors", professorPanel);
         tabbedPane.addTab("Enrollments", enrollmentPanel);
         tabbedPane.addTab("Grades", gradePanel);
         tabbedPane.addTab("Reports", reportPanel);
@@ -78,199 +67,87 @@ class MainFrame extends JFrame {
     }
     
     // Data access methods
-    public MyGenericList<Student> getStudents() {
-        return students;
+    public List<Student> getStudents() {
+        return this.studentDAO.getAllStudents();
     }
     
-    public MyGenericList<Course> getCourses() {
-        return courses;
+    public List<Course> getCourses() {
+        return this.courseDAO.getAllCourses();
     }
     
-    public MyGenericList<Department> getDepartments() {
-        return departments;
+    public List<Department> getDepartments() {
+        return departmentDAO.getAllDepartments();
     }
     
-    public MyGenericList<Instructor> getInstructors() {
-        return instructors;
+    public List<Professor> getProfessors() {
+        return professorDAO.getAllProfessors();
     }
     
-    public List<Enrollment> getEnrollments() {
-        return enrollments;
+    // Enrollment specific methods using EnrollmentDAO
+    public List<Enrollment> getAllEnrollmentsFromDB() {
+        return this.enrollmentDAO.getAllEnrollments();
+    }
+
+    public boolean addEnrollmentToDB(Enrollment enrollment) {
+        return this.enrollmentDAO.addEnrollment(enrollment);
+    }
+
+    public Enrollment findEnrollmentInDB(int studentId, int courseId, String year, String semester) {
+        return this.enrollmentDAO.findEnrollment(studentId, courseId, year, semester);
+    }
+
+    public List<Enrollment> getEnrollmentsForStudentFromDB(int studentId) {
+        return this.enrollmentDAO.getEnrollmentsByStudentId(studentId);
+    }
+
+    public List<Enrollment> getEnrollmentsForCourseFromDB(int courseId) {
+        return this.enrollmentDAO.getEnrollmentsByCourseId(courseId);
+    }
+
+    public boolean updateGradeInDB(int studentId, int courseId, String year, String semester, String grade) {
+        return this.enrollmentDAO.updateGrade(studentId, courseId, year, semester, grade);
     }
     
     // Method to refresh all department combos
     public void refreshDepartmentCombos() {
         if (coursePanel != null) {
             coursePanel.updateDepartmentCombo();
-            coursePanel.updateInstructorCombo();
+            coursePanel.updateProfessorCombo();
         }
-        if (instructorPanel != null) {
-            instructorPanel.updateDepartmentCombo();
+        if (professorPanel != null) {
+            professorPanel.updateDepartmentCombo();
         }
     }
     
-    // Add new method for instructor updates
-    public void refreshInstructorCombos() {
+    // Add new method for professor updates
+    public void refreshProfessorCombos() {
         if (coursePanel != null) {
-            coursePanel.updateInstructorCombo();
-        }
-    }
-    
-    /**
-     * Saves an object to file with error handling.
-     * @param obj Object to save
-     * @param filePath Path to save the file
-     * @param errorPrefix Prefix for error messages
-     */
-    private void saveObject(Object obj, String filePath, String errorPrefix) {
-        try (ObjectOutputStream oos = new ObjectOutputStream(new FileOutputStream(filePath))) {
-            oos.writeObject(obj);
-        } catch (IOException e) {
-            JOptionPane.showMessageDialog(this, 
-                errorPrefix + ": " + e.getMessage(), 
-                "Error", 
-                JOptionPane.ERROR_MESSAGE);
-        }
-    }
-
-    /**
-     * Loads a MyGenericList from file with error handling.
-     * @param filePath Path to load the file
-     * @param errorPrefix Prefix for error messages
-     * @return Loaded list or new empty list if loading fails
-     */
-    @SuppressWarnings("unchecked")
-    private <T extends Comparable<T>> MyGenericList<T> loadList(String filePath, String errorPrefix) {
-        File file = new File(filePath);
-        MyGenericList<T> list = new MyGenericList<>();
-        
-        if (file.exists()) {
-            try (ObjectInputStream ois = new ObjectInputStream(new FileInputStream(file))) {
-                Object loadedData = ois.readObject();
-                if (loadedData instanceof MyGenericList) {
-                    list = (MyGenericList<T>) loadedData;
-                } else {
-                    System.out.println("Warning: " + errorPrefix + " data format mismatch. Starting with empty list.");
-                }
-            } catch (IOException | ClassNotFoundException e) {
-                JOptionPane.showMessageDialog(this, 
-                    "Error loading " + errorPrefix + ": " + e.getMessage(), 
-                    "Error", 
-                    JOptionPane.ERROR_MESSAGE);
-            }
-        }
-        return list;
-    }
-
-    // Updated save methods using utility method
-    public void saveStudents() {
-        saveObject(students, STUDENT_FILE, "Error saving students");
-    }
-    
-    public void saveCourses() {
-        saveObject(courses, COURSE_FILE, "Error saving courses");
-    }
-    
-    public void saveDepartments() {
-        saveObject(departments, DEPARTMENT_FILE, "Error saving departments");
-    }
-    
-    public void saveInstructors() {
-        saveObject(instructors, INSTRUCTOR_FILE, "Error saving instructors");
-    }
-    
-    public void saveEnrollments() {
-        saveObject(enrollments, ENROLLMENT_FILE, "Error saving enrollments");
-    }
-    
-    // Updated load methods using utility method
-    private void loadStudents() {
-        students = loadList(STUDENT_FILE, "students");
-    }
-    
-    private void loadCourses() {
-        courses = loadList(COURSE_FILE, "courses");
-    }
-    
-    private void loadDepartments() {
-        departments = loadList(DEPARTMENT_FILE, "departments");
-    }
-    
-    private void loadInstructors() {
-        instructors = loadList(INSTRUCTOR_FILE, "instructors");
-    }
-    
-    @SuppressWarnings("unchecked")
-    private void loadEnrollments() {
-        File file = new File(ENROLLMENT_FILE);
-        enrollments = new ArrayList<>();
-        
-        if (file.exists()) {
-            try (ObjectInputStream ois = new ObjectInputStream(new FileInputStream(file))) {
-                Object loadedData = ois.readObject();
-                if (loadedData instanceof List) {
-                    enrollments = (List<Enrollment>) loadedData;
-                } else {
-                    System.out.println("Warning: Enrollment data format mismatch. Starting with empty list.");
-                }
-            } catch (IOException | ClassNotFoundException e) {
-                JOptionPane.showMessageDialog(this, 
-                    "Error loading enrollments: " + e.getMessage(), 
-                    "Error", 
-                    JOptionPane.ERROR_MESSAGE);
-            }
+            coursePanel.updateProfessorCombo();
         }
     }
     
     // Helper methods for finding objects by ID
     public Student findStudentById(int id) {
-        for (int i = 0; i < students.size(); i++) {
-            Student student = students.get(i);
-            if (student.getId() == id) {
-                return student;
-            }
-        }
-        return null;
+        return this.studentDAO.getStudentById(id);
     }
     
     public Course findCourseById(int id) {
-        for (int i = 0; i < courses.size(); i++) {
-            Course course = courses.get(i);
-            if (course.getId() == id) {
-                return course;
-            }
-        }
-        return null;
+        return this.courseDAO.getCourseById(id);
+    }
+    
+    public Course findCourseByCourseNumber(String courseNumber) {
+        return this.courseDAO.getCourseByCourseNumber(courseNumber);
     }
     
     public Department findDepartmentById(int id) {
-        for (int i = 0; i < departments.size(); i++) {
-            Department department = departments.get(i);
-            if (department.getId() == id) {
-                return department;
-            }
-        }
-        return null;
+        return departmentDAO.getDepartmentById(id);
     }
     
-    public Instructor findInstructorById(int id) {
-        for (int i = 0; i < instructors.size(); i++) {
-            Instructor instructor = instructors.get(i);
-            if (instructor.getId() == id) {
-                return instructor;
-            }
-        }
-        return null;
+    public Professor findProfessorById(int id) {
+        return professorDAO.getProfessorById(id);
     }
     
-    public MyGenericList<Instructor> getInstructorsByDepartment(int departmentId) {
-        MyGenericList<Instructor> departmentInstructors = new MyGenericList<>();
-        for (int i = 0; i < instructors.size(); i++) {
-            Instructor instructor = instructors.get(i);
-            if (instructor.getDepartmentId() == departmentId) {
-                departmentInstructors.add(instructor);
-            }
-        }
-        return departmentInstructors;
+    public List<Professor> getProfessorsByDepartment(int departmentId) {
+        return professorDAO.getProfessorsByDepartmentId(departmentId);
     }
 } 

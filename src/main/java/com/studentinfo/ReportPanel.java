@@ -5,8 +5,7 @@ import java.awt.*;
 
 
 /**
- * Report generation panel for course enrollment and grade reports.
- * Provides formatted output with student and grade information.
+ * Panel for generating course enrollment reports.
  */
 class ReportPanel extends JPanel {
     private MainFrame mainFrame;
@@ -59,8 +58,7 @@ class ReportPanel extends JPanel {
     }
 
     /**
-     * Generates detailed course report including enrolled students and grades.
-     * Uses monospaced font for aligned output.
+     * Generates a course enrollment report for the specified semester.
      */
     private void generateReport() {
         try {
@@ -78,7 +76,7 @@ class ReportPanel extends JPanel {
             report.append("Course Report\n");
             report.append("=============\n\n");
             report.append("Course ID: ").append(courseId).append("\n");
-            report.append("Course Name: ").append(course.getName()).append("\n");
+            report.append("Course Name: ").append(course.getCourseName()).append("\n");
             report.append("Department ID: ").append(course.getDepartmentId()).append("\n");
             report.append("Credits: ").append(course.getCredits()).append("\n");
             report.append("Year: ").append(year).append("\n");
@@ -86,17 +84,17 @@ class ReportPanel extends JPanel {
             report.append("Enrolled Students:\n");
             report.append("==================\n\n");
             
-            // Use monospaced font formatting for better alignment
+            // Use monospaced font for better alignment
             Font originalFont = reportArea.getFont();
             Font monoFont = new Font(Font.MONOSPACED, Font.PLAIN, originalFont.getSize());
             reportArea.setFont(monoFont);
             
-            // Fixed width columns
+            // Header with fixed-width columns
             report.append(String.format("%-10s %-30s %-10s\n", "Student ID", "Name", "Grade"));
             report.append(String.format("%-10s %-30s %-10s\n", "----------", "------------------------------", "----------"));
             
             boolean studentsFound = false;
-            for (Enrollment enrollment : mainFrame.getEnrollments()) {
+            for (Enrollment enrollment : mainFrame.getAllEnrollmentsFromDB()) {
                 if (enrollment.getCourseId() == courseId && 
                     enrollment.getYear().equals(year) && 
                     enrollment.getSemester().equals(semester)) {

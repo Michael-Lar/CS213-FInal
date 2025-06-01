@@ -1,70 +1,84 @@
 package com.studentinfo;
 
-import java.io.Serializable;
-
 /**
- * Course information including credits and department/instructor assignments.
- * Implements Comparable for sorting and Serializable for storage.
+ * Represents a course offering in the system.
  */
-class Course implements Serializable, Comparable<Course> {
-    private static final long serialVersionUID = 1L;
+public class Course implements Comparable<Course> {
     private int id;
-    private String name;
-    private int departmentId;
-    private int instructorId;
+    private String courseNumber;
+    private String courseName;
     private int credits;
+    private int departmentId;
+    private int professorId;
 
-    public Course(int id, String name, int credits, int departmentId, int instructorId) {
+    public Course(int id, String courseNumber, String courseName, int credits, int departmentId, int professorId) {
         this.id = id;
-        this.name = name;
+        this.courseNumber = courseNumber;
+        this.courseName = courseName;
         this.credits = credits;
         this.departmentId = departmentId;
-        this.instructorId = instructorId;
+        this.professorId = professorId;
     }
 
     public int getId() {
         return id;
     }
 
-    public String getName() {
-        return name;
+    public String getCourseNumber() {
+        return courseNumber;
     }
 
-    public void setName(String name) {
-        this.name = name;
+    public String getCourseName() {
+        return courseName;
     }
 
     public int getCredits() {
         return credits;
     }
 
-    public void setCredits(int credits) {
-        this.credits = credits;
-    }
-
     public int getDepartmentId() {
         return departmentId;
+    }
+
+    public int getProfessorId() {
+        return professorId;
+    }
+
+    public void setId(int id) {
+        this.id = id;
+    }
+
+    public void setCourseNumber(String courseNumber) {
+        this.courseNumber = courseNumber;
+    }
+
+    public void setCourseName(String courseName) {
+        this.courseName = courseName;
+    }
+
+    public void setCredits(int credits) {
+        this.credits = credits;
     }
 
     public void setDepartmentId(int departmentId) {
         this.departmentId = departmentId;
     }
 
-    public int getInstructorId() {
-        return instructorId;
-    }
-
-    public void setInstructorId(int instructorId) {
-        this.instructorId = instructorId;
+    public void setProfessorId(int professorId) {
+        this.professorId = professorId;
     }
 
     @Override
     public String toString() {
-        return name;
+        return courseNumber + " - " + courseName;
     }
 
     @Override
     public int compareTo(Course other) {
+        // Sort by course number, fall back to ID if null
+        if (this.courseNumber != null && other.courseNumber != null) {
+            return this.courseNumber.compareTo(other.courseNumber);
+        }
         return Integer.compare(this.id, other.id);
     }
 } 

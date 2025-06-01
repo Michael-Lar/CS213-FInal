@@ -9,7 +9,7 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import org.json.JSONArray;
 import org.json.JSONObject;
-
+import com.studentinfo.dao.StudentDAO;
 
 /**
  * Student management panel with ZIP code lookup integration.
@@ -17,12 +17,14 @@ import org.json.JSONObject;
  */
 class StudentPanel extends JPanel {
     private MainFrame mainFrame;
+    private StudentDAO studentDAO;
     private JTextField idField, nameField, addressField, cityField, stateField, zipField;
     private JButton addButton, searchButton, editButton, resetButton, lookupZipButton;
     private JLabel statusLabel;
 
     public StudentPanel(MainFrame mainFrame) {
         this.mainFrame = mainFrame;
+        this.studentDAO = new StudentDAO();
         setupUI();
     }
 
@@ -35,6 +37,8 @@ class StudentPanel extends JPanel {
 
         formPanel.add(new JLabel("Student ID:"));
         idField = new JTextField();
+        idField.setEditable(false);
+        idField.setBackground(UIManager.getColor("TextField.inactiveBackground"));
         formPanel.add(idField);
 
         formPanel.add(new JLabel("Name:"));
@@ -94,6 +98,64 @@ class StudentPanel extends JPanel {
     }
 
     private void addStudent() {
+        String name = nameField.getText().trim();
+        String address = addressField.getText().trim();
+        String city = cityField.getText().trim();
+        String state = stateField.getText().trim();
+        String zip = zipField.getText().trim();
+
+        if (name.isEmpty() || address.isEmpty() || city.isEmpty() || state.isEmpty() || zip.isEmpty()) {
+            JOptionPane.showMessageDialog(this, "All fields except ID are required.", "Error", JOptionPane.ERROR_MESSAGE);
+            return;
+        }
+
+        Student newStudent = new Student(0, name, address, city, state, zip);
+
+        if (studentDAO.addStudent(newStudent)) {
+            JOptionPane.showMessageDialog(this, "Student added successfully. New ID: " + newStudent.getId(), "Success", JOptionPane.INFORMATION_MESSAGE);
+            idField.setText(String.valueOf(newStudent.getId()));
+            idField.setEditable(false);
+            idField.setBackground(UIManager.getColor("TextField.inactiveBackground"));
+            resetFields(false);
+        } else {
+            JOptionPane.showMessageDialog(this, "Failed to add student to the database.", "Error", JOptionPane.ERROR_MESSAGE);
+        }
+    }
+
+    private void searchStudent() {
+        try {
+            if (idField.getText().trim().isEmpty()){
+                JOptionPane.showMessageDialog(this, "Please enter a Student ID to search.", "Info", JOptionPane.INFORMATION_MESSAGE);
+                idField.setEditable(true);
+                idField.setBackground(UIManager.getColor("TextField.background"));
+                idField.requestFocus();
+                return;
+            }
+            int id = Integer.parseInt(idField.getText().trim());
+            Student student = studentDAO.getStudentById(id);
+
+            if (student != null) {
+                idField.setEditable(false);
+                idField.setBackground(UIManager.getColor("TextField.inactiveBackground"));
+                nameField.setText(student.getName());
+                addressField.setText(student.getAddress());
+                cityField.setText(student.getCity());
+                stateField.setText(student.getState());
+                zipField.setText(student.getZip());
+                statusLabel.setText("Student found. ID: " + student.getId());
+                editButton.setEnabled(true);
+                addButton.setEnabled(false);
+            } else {
+                JOptionPane.showMessageDialog(this, "Student ID not found.", "Error", JOptionPane.ERROR_MESSAGE);
+                resetFields(true);
+            }
+        } catch (NumberFormatException e) {
+            JOptionPane.showMessageDialog(this, "Invalid ID format. Please enter a number.", "Error", JOptionPane.ERROR_MESSAGE);
+            resetFields(true);
+        }
+    }
+
+    private void editStudent() {
         try {
             int id = Integer.parseInt(idField.getText().trim());
             String name = nameField.getText().trim();
@@ -102,120 +164,48 @@ class StudentPanel extends JPanel {
             String state = stateField.getText().trim();
             String zip = zipField.getText().trim();
 
-            // Validate fields
             if (name.isEmpty() || address.isEmpty() || city.isEmpty() || state.isEmpty() || zip.isEmpty()) {
                 JOptionPane.showMessageDialog(this, "All fields are required.", "Error", JOptionPane.ERROR_MESSAGE);
                 return;
             }
 
-            // Check if student ID already exists
-            if (mainFrame.getStudents().size() > 0 && mainFrame.findStudentById(id) != null) {
-                JOptionPane.showMessageDialog(this, "Student ID already exists.", "Error", JOptionPane.ERROR_MESSAGE);
-                return;
-            }
+            Student studentToUpdate = new Student(id, name, address, city, state, zip);
 
-            // Create new student and add to list
-            Student student = new Student(id, name, address, city, state, zip);
-            mainFrame.getStudents().add(student);
-            mainFrame.saveStudents();
-
-            JOptionPane.showMessageDialog(this, "Student added successfully.", "Success", JOptionPane.INFORMATION_MESSAGE);
-            resetFields();
-        } catch (NumberFormatException e) {
-            JOptionPane.showMessageDialog(this, "Invalid ID format. Please enter a number.", "Error", JOptionPane.ERROR_MESSAGE);
-        }
-    }
-
-    private void searchStudent() {
-        try {
-            int id = Integer.parseInt(idField.getText().trim());
-            Student student = mainFrame.findStudentById(id);
-
-            if (student != null) {
-                // Make ID field non-editable after successful search
-                idField.setEditable(false);
-                idField.setBackground(UIManager.getColor("TextField.inactiveBackground"));
-                
-                // Populate other fields
-                nameField.setText(student.getName());
-                addressField.setText(student.getAddress());
-                cityField.setText(student.getCity());
-                stateField.setText(student.getState());
-                zipField.setText(student.getZip());
-                statusLabel.setText("Student found.");
-                
-                // Enable edit button and disable add button
-                if (editButton != null) editButton.setEnabled(true);
-                if (addButton != null) addButton.setEnabled(false);
-            } else {
-                JOptionPane.showMessageDialog(this, "Student ID not found.", "Error", JOptionPane.ERROR_MESSAGE);
-                resetFields(); // Reset all fields if student not found
-            }
-        } catch (NumberFormatException e) {
-            JOptionPane.showMessageDialog(this, "Invalid ID format. Please enter a number.", "Error", JOptionPane.ERROR_MESSAGE);
-        }
-    }
-
-    /**
-     * Updates student record after validation.
-     * Disables ID field during edit mode.
-     */
-    private void editStudent() {
-        try {
-            int id = Integer.parseInt(idField.getText().trim());
-            Student student = mainFrame.findStudentById(id);
-
-            if (student != null) {
-                // Lock ID field
-                idField.setEditable(false);
-                
-                // Update student information
-                String name = nameField.getText().trim();
-                String address = addressField.getText().trim();
-                String city = cityField.getText().trim();
-                String state = stateField.getText().trim();
-                String zip = zipField.getText().trim();
-
-                // Validate fields
-                if (name.isEmpty() || address.isEmpty() || city.isEmpty() || state.isEmpty() || zip.isEmpty()) {
-                    JOptionPane.showMessageDialog(this, "All fields are required.", "Error", JOptionPane.ERROR_MESSAGE);
-                    return;
-                }
-
-                student.setName(name);
-                student.setAddress(address);
-                student.setCity(city);
-                student.setState(state);
-                student.setZip(zip);
-                mainFrame.saveStudents();
-
+            if (studentDAO.updateStudent(studentToUpdate)) {
                 JOptionPane.showMessageDialog(this, "Student updated successfully.", "Success", JOptionPane.INFORMATION_MESSAGE);
-                resetFields();
+                resetFields(true);
             } else {
-                JOptionPane.showMessageDialog(this, "Student ID not found.", "Error", JOptionPane.ERROR_MESSAGE);
+                JOptionPane.showMessageDialog(this, "Failed to update student. Make sure the ID is correct.", "Error", JOptionPane.ERROR_MESSAGE);
             }
         } catch (NumberFormatException e) {
-            JOptionPane.showMessageDialog(this, "Invalid ID format. Please enter a number.", "Error", JOptionPane.ERROR_MESSAGE);
+            JOptionPane.showMessageDialog(this, "Invalid ID format in ID field. This should not happen if search was performed first.", "Error", JOptionPane.ERROR_MESSAGE);
         }
     }
 
     private void resetFields() {
-        // Make ID field editable again
-        idField.setEditable(true);
-        idField.setBackground(UIManager.getColor("TextField.background"));
-        
-        // Clear all fields
-        idField.setText("");
+        resetFields(true);
+    }
+
+    private void resetFields(boolean makeIdEditable) {
+        if (makeIdEditable) {
+            idField.setEditable(true);
+            idField.setBackground(UIManager.getColor("TextField.background"));
+            idField.setText("");
+        } else {
+            // If not making ID editable, it means an add operation just completed
+            // and we want to keep the ID displayed and non-editable.
+            // We might still clear other fields or not, depending on desired UX.
+            // For now, let's clear other fields for consistency.
+        }
         nameField.setText("");
         addressField.setText("");
         cityField.setText("");
         stateField.setText("");
         zipField.setText("");
         statusLabel.setText(" ");
-        
-        // Reset button states
-        if (editButton != null) editButton.setEnabled(true);
-        if (addButton != null) addButton.setEnabled(true);
+        editButton.setEnabled(false);
+        addButton.setEnabled(true);
+        if (makeIdEditable) idField.requestFocus();
     }
 
     /**

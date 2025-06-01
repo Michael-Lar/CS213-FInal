@@ -5,7 +5,7 @@ import java.awt.*;
 
 /**
  * Enrollment management panel for handling student course enrollments.
- * Provides functionality to add, search, and manage enrollments.
+ * Provides functionality to add, search, and manage enrollments using database operations.
  */
 class EnrollmentPanel extends JPanel {
     private MainFrame mainFrame;
@@ -33,7 +33,7 @@ class EnrollmentPanel extends JPanel {
         studentIdField = new JTextField();
         formPanel.add(studentIdField);
 
-        formPanel.add(new JLabel("Course ID:"));
+        formPanel.add(new JLabel("Course ID (DB ID):"));
         courseIdField = new JTextField();
         formPanel.add(courseIdField);
 
@@ -51,8 +51,8 @@ class EnrollmentPanel extends JPanel {
         // Button panel
         JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.CENTER));
         addButton = new JButton("Add Enrollment");
-        searchButton = new JButton("Search");
-        resetButton = new JButton("Reset");
+        searchButton = new JButton("Search Enrollment");
+        resetButton = new JButton("Reset Fields");
 
         buttonPanel.add(addButton);
         buttonPanel.add(searchButton);
@@ -70,8 +70,15 @@ class EnrollmentPanel extends JPanel {
 
     private void addEnrollment() {
         try {
-            int studentId = Integer.parseInt(studentIdField.getText().trim());
-            int courseId = Integer.parseInt(courseIdField.getText().trim());
+            String studentIdText = studentIdField.getText().trim();
+            String courseIdText = courseIdField.getText().trim();
+            if (studentIdText.isEmpty() || courseIdText.isEmpty()) {
+                JOptionPane.showMessageDialog(this, "Student ID and Course ID are required.", "Error", JOptionPane.ERROR_MESSAGE);
+                return;
+            }
+
+            int studentId = Integer.parseInt(studentIdText);
+            int courseId = Integer.parseInt(courseIdText);
             String year = yearCombo.getSelectedItem().toString();
             String semester = semesterCombo.getSelectedItem().toString();
 
@@ -82,72 +89,70 @@ class EnrollmentPanel extends JPanel {
                 return;
             }
 
-            // Validate course exists
+            // Validate course exists (by its auto-incremented course_id)
             Course course = mainFrame.findCourseById(courseId);
             if (course == null) {
-                JOptionPane.showMessageDialog(this, "Course ID not found.", "Error", JOptionPane.ERROR_MESSAGE);
+                JOptionPane.showMessageDialog(this, "Course (DB) ID not found.", "Error", JOptionPane.ERROR_MESSAGE);
                 return;
             }
 
-            // Check for duplicate enrollment
-            for (Enrollment enrollment : mainFrame.getEnrollments()) {
-                if (enrollment.getStudentId() == studentId && 
-                    enrollment.getCourseId() == courseId &&
-                    enrollment.getYear().equals(year) &&
-                    enrollment.getSemester().equals(semester)) {
-                    JOptionPane.showMessageDialog(this, 
-                        "Student is already enrolled in this course for the selected semester.", 
-                        "Error", 
-                        JOptionPane.ERROR_MESSAGE);
-                    return;
-                }
+            // Check for duplicate enrollment using DAO via MainFrame
+            if (mainFrame.findEnrollmentInDB(studentId, courseId, year, semester) != null) {
+                JOptionPane.showMessageDialog(this, 
+                    "Student is already enrolled in this course for the selected semester.", 
+                    "Duplicate Enrollment", 
+                    JOptionPane.ERROR_MESSAGE);
+                return;
             }
 
-            // Create new enrollment
-            Enrollment enrollment = new Enrollment(studentId, courseId, year, semester);
-            mainFrame.getEnrollments().add(enrollment);
-            mainFrame.saveEnrollments();
+            // Create new enrollment object (enrollment_id will be set by DAO)
+            Enrollment newEnrollment = new Enrollment(0, studentId, courseId, year, semester, null);
+            
+            if (mainFrame.addEnrollmentToDB(newEnrollment)) {
+                JOptionPane.showMessageDialog(this, "Enrollment added successfully. Enrollment ID: " + newEnrollment.getEnrollmentId(), "Success", JOptionPane.INFORMATION_MESSAGE);
+                resetFields();
+            } else {
+                JOptionPane.showMessageDialog(this, "Failed to add enrollment to the database.", "Error", JOptionPane.ERROR_MESSAGE);
+            }
 
-            JOptionPane.showMessageDialog(this, "Enrollment added successfully.", "Success", JOptionPane.INFORMATION_MESSAGE);
-            resetFields();
         } catch (NumberFormatException e) {
-            JOptionPane.showMessageDialog(this, "Invalid ID format. Please enter numbers.", "Error", JOptionPane.ERROR_MESSAGE);
+            JOptionPane.showMessageDialog(this, "Invalid ID format. Please enter numbers for Student ID and Course ID.", "Error", JOptionPane.ERROR_MESSAGE);
         }
     }
 
     private void searchEnrollment() {
         try {
-            int studentId = Integer.parseInt(studentIdField.getText().trim());
-            int courseId = Integer.parseInt(courseIdField.getText().trim());
+            String studentIdText = studentIdField.getText().trim();
+            String courseIdText = courseIdField.getText().trim();
+            if (studentIdText.isEmpty() || courseIdText.isEmpty()) {
+                JOptionPane.showMessageDialog(this, "Student ID and Course ID are required to search.", "Info", JOptionPane.INFORMATION_MESSAGE);
+                return;
+            }
+
+            int studentId = Integer.parseInt(studentIdText);
+            int courseId = Integer.parseInt(courseIdText);
             String year = yearCombo.getSelectedItem().toString();
             String semester = semesterCombo.getSelectedItem().toString();
 
-            boolean found = false;
-            for (Enrollment enrollment : mainFrame.getEnrollments()) {
-                if (enrollment.getStudentId() == studentId && 
-                    enrollment.getCourseId() == courseId &&
-                    enrollment.getYear().equals(year) &&
-                    enrollment.getSemester().equals(semester)) {
-                    found = true;
-                    break;
-                }
-            }
+            Enrollment enrollment = mainFrame.findEnrollmentInDB(studentId, courseId, year, semester);
 
-            if (found) {
-                statusLabel.setText("Enrollment found.");
+            if (enrollment != null) {
+                statusLabel.setText("Enrollment found. Grade: " + (enrollment.getGrade() != null ? enrollment.getGrade() : "Not Graded"));
             } else {
-                JOptionPane.showMessageDialog(this, "Enrollment not found.", "Error", JOptionPane.ERROR_MESSAGE);
+                statusLabel.setText("Enrollment not found.");
+                JOptionPane.showMessageDialog(this, "Enrollment not found for the specified details.", "Not Found", JOptionPane.WARNING_MESSAGE);
             }
         } catch (NumberFormatException e) {
-            JOptionPane.showMessageDialog(this, "Invalid ID format. Please enter numbers.", "Error", JOptionPane.ERROR_MESSAGE);
+            JOptionPane.showMessageDialog(this, "Invalid ID format. Please enter numbers for Student ID and Course ID.", "Error", JOptionPane.ERROR_MESSAGE);
         }
     }
 
     private void resetFields() {
         studentIdField.setText("");
         courseIdField.setText("");
-        yearCombo.setSelectedIndex(0);
-        semesterCombo.setSelectedIndex(0);
+        if (yearCombo.getItemCount() > 0) yearCombo.setSelectedIndex(0);
+        if (semesterCombo.getItemCount() > 0) semesterCombo.setSelectedIndex(0);
         statusLabel.setText(" ");
+        studentIdField.requestFocus();
     }
 } 

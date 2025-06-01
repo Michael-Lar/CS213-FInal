@@ -1,13 +1,9 @@
 package com.studentinfo;
 
-import java.io.Serializable;
-
 /**
- * Student record with personal and contact information.
- * Implements Comparable for sorting and Serializable for storage.
+ * Represents a student in the system.
  */
-class Student implements Serializable, Comparable<Student> {
-    private static final long serialVersionUID = 1L;
+public class Student implements Comparable<Student> {
     private int id;
     private String name;
     private String address;
@@ -24,8 +20,8 @@ class Student implements Serializable, Comparable<Student> {
         this.zip = zip;
     }
 
-    // Getters and setters
     public int getId() { return id; }
+    public void setId(int id) { this.id = id; }
     public String getName() { return name; }
     public void setName(String name) { this.name = name; }
     public String getAddress() { return address; }
