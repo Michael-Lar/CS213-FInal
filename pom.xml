@@ -28,6 +28,7 @@
     </dependencies>
 
     <build>
+        <finalName>student-info-system</finalName>
         <plugins>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
