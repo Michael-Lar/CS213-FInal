@@ -1,3 +1,28 @@
+# Compiled class files
+*.class
+
+# Log files
+*.log
+
+# BlueJ files
+*.ctxt
+
+# Mobile Tools for Java (J2ME)
+.mtj.tmp/
+
+# Package Files
+*.jar
+*.war
+*.nar
+*.ear
+*.zip
+*.tar.gz
+*.rar
+
+# virtual machine crash logs
+hs_err_pid*
+replay_pid*
+
 # Maven
 target/
 pom.xml.tag
@@ -10,23 +35,40 @@ buildNumber.properties
 .mvn/timing.properties
 .mvn/wrapper/maven-wrapper.jar
 
-# IDE files
+# IntelliJ IDEA
 .idea/
+*.iws
 *.iml
+*.ipr
+
+# VS Code
 .vscode/
-.settings/
+*.code-workspace
+
+# Eclipse
 .classpath
 .project
+.settings/
+bin/
 
-# Compiled files
-*.class
-*.jar
-*.war
-*.ear
+# NetBeans
+/nbproject/private/
+/nbbuild/
+/dist/
+/nbdist/
+/.nb-gradle/
+build/
 
-# Logs
-*.log
-
-# OS specific files
+# Mac OS
 .DS_Store
-Thumbs.db 
+.AppleDouble
+.LSOverride
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Application specific
+app.config
+*.dat 
